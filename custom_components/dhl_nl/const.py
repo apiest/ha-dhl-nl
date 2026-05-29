@@ -1,4 +1,5 @@
 """Constants for the DHL Package Tracker integration."""
+
 from homeassistant.const import Platform
 
 DOMAIN = "dhl_nl"
@@ -14,17 +15,19 @@ POLL_INTERVAL = 1800  # seconds (30 minutes)
 # All categories that indicate a shipment is still active (not yet delivered).
 # Applies to both incoming parcels and outgoing sent shipments.
 # DELIVERED is the only terminal category and is intentionally excluded.
-ACTIVE_CATEGORIES = frozenset({
-    "CUSTOMS",        # Being processed by customs
-    "DATA_RECEIVED",  # Shipment registered / label created
-    "EXCEPTION",      # Something went wrong, delay expected
-    "IN_DELIVERY",    # Parcel is in transit
-    "INTERVENTION",   # An intervention occurred in the delivery process
-    "LEG",            # Domestic leg registered (early trace event)
-    "PROBLEM",        # Same as EXCEPTION
-    "UNDERWAY",       # Parcel is being sorted
-    "UNKNOWN",        # Status unknown
-})
+ACTIVE_CATEGORIES = frozenset(
+    {
+        "CUSTOMS",  # Being processed by customs
+        "DATA_RECEIVED",  # Shipment registered / label created
+        "EXCEPTION",  # Something went wrong, delay expected
+        "IN_DELIVERY",  # Parcel is in transit
+        "INTERVENTION",  # An intervention occurred in the delivery process
+        "LEG",  # Domestic leg registered (early trace event)
+        "PROBLEM",  # Same as EXCEPTION
+        "UNDERWAY",  # Parcel is being sorted
+        "UNKNOWN",  # Status unknown
+    }
+)
 
 STATUS_AT_SERVICE_POINT = "NOTIFICATION_FOR_PARCELSHOP_COLLECTION_HAS_BEEN_SENT"
 STATUS_COLLECTED_AT_SERVICE_POINT = "COLLECTED_AT_PARCELSHOP"

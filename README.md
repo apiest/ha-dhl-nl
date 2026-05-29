@@ -144,6 +144,14 @@ Both incoming and outgoing sensors only track shipments in the following categor
 | `UNDERWAY` | Parcel is being sorted |
 | `UNKNOWN` | Status unknown |
 
+## Parcel integration support
+
+This integration optionally integrates with the [Parcel](https://github.com/apiest/ha-parcel) custom integration. When both are installed, DHL NL automatically registers as a parcel provider and pushes all incoming and outgoing shipments to the Parcel integration's unified dashboard — complete with carrier detection, DHL favicons, and delivery status mapping.
+
+- **No configuration needed** — the bridge activates automatically when Parcel is loaded
+- **Standalone-safe** — DHL NL works exactly the same without Parcel installed
+- **Tracking code routing** — manually added `JVGL` / `JJD` codes in the Parcel add-card are automatically routed to DHL NL
+
 ## Poll interval
 
 Data is refreshed every **30 minutes**. You can trigger a manual refresh from the integration's device page using the **Reload** option.

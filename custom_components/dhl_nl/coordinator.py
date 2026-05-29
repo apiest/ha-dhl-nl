@@ -1,4 +1,5 @@
 """Coordinator for the DHL Package Tracker integration."""
+
 from __future__ import annotations
 
 import logging
@@ -18,18 +19,18 @@ _LOGGER = logging.getLogger(__name__)
 def filter_active_parcels(parcels: list[dict]) -> list[dict]:
     """Return only active incoming parcels (not returns, in an active category)."""
     return [
-        p for p in parcels
-        if not p.get("isReturn", True)
-        and p.get("category") in ACTIVE_CATEGORIES
+        p
+        for p in parcels
+        if not p.get("isReturn", True) and p.get("category") in ACTIVE_CATEGORIES
     ]
 
 
 def filter_active_sent_shipments(shipments: list[dict]) -> list[dict]:
     """Return only outgoing shipments that are still in transit (not yet delivered)."""
     return [
-        s for s in shipments
-        if s.get("type") == "outgoing"
-        and s.get("category") in ACTIVE_CATEGORIES
+        s
+        for s in shipments
+        if s.get("type") == "outgoing" and s.get("category") in ACTIVE_CATEGORIES
     ]
 
 
@@ -58,10 +59,31 @@ class DhlCoordinator(DataUpdateCoordinator[list[dict]]):
             raise UpdateFailed(f"DHL error: {err}") from err
 
         active = filter_active_parcels(raw)
-        _LOGGER.debug(
-            "DHL parcels fetched: %d total, %d active", len(raw), len(active)
-        )
+        _LOGGER.debug("DHL parcels fetched: %d total, %d active", len(raw), len(active))
+
+        # Push to the Parcel integration (no-op when Parcel is not loaded).
+        await self._push_to_parcel(active)
+
         return active
+
+    async def _push_to_parcel(self, incoming: list[dict]) -> None:
+        """Push incoming + outgoing shipments to the Parcel integration."""
+        try:
+            from .parcel_bridge import push_to_parcel  # noqa: PLC0415
+        except ImportError:
+            return
+
+        # Grab outgoing data from the sent coordinator if available.
+        entry_data = self.hass.data.get(DOMAIN, {})
+        outgoing: list[dict] = []
+        for data in entry_data.values():
+            if isinstance(data, dict) and "sent_coordinator" in data:
+                sent_coord = data["sent_coordinator"]
+                if sent_coord.data:
+                    outgoing = sent_coord.data
+                break
+
+        await push_to_parcel(self.hass, incoming, outgoing)
 
 
 class DhlSentShipmentsCoordinator(DataUpdateCoordinator[list[dict]]):

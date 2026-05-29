@@ -1,11 +1,16 @@
 """Sensor platform for the DHL Package Tracker integration."""
+
 from __future__ import annotations
 
 import logging
 from datetime import datetime, timezone
 from typing import Any
 
-from homeassistant.components.sensor import SensorDeviceClass, SensorEntity, SensorStateClass
+from homeassistant.components.sensor import (
+    SensorDeviceClass,
+    SensorEntity,
+    SensorStateClass,
+)
 from homeassistant.config_entries import ConfigEntry
 from homeassistant.core import HomeAssistant
 from homeassistant.helpers import entity_registry as er
@@ -40,9 +45,7 @@ async def async_setup_entry(
     await coordinator.async_config_entry_first_refresh()
     await sent_coordinator.async_config_entry_first_refresh()
 
-    current_barcodes: set[str] = {
-        p.get("barcode", "") for p in coordinator.data or []
-    }
+    current_barcodes: set[str] = {p.get("barcode", "") for p in coordinator.data or []}
     user_id: str = user_info.get("userId", "")
 
     # Remove per-parcel sensors from the entity registry that are no longer
@@ -60,7 +63,7 @@ async def async_setup_entry(
             entity_entry.unique_id.startswith(f"{user_id}_")
             and entity_entry.unique_id not in non_parcel_unique_ids
         ):
-            barcode = entity_entry.unique_id[len(f"{user_id}_"):]
+            barcode = entity_entry.unique_id[len(f"{user_id}_") :]
             if barcode not in current_barcodes:
                 registry.async_remove(entity_entry.entity_id)
 
@@ -86,8 +89,12 @@ async def async_setup_entry(
         )
 
     entities.append(DhlNextDeliverySensor(coordinator=coordinator, user_info=user_info))
-    entities.append(DhlEnRouteToServicePointSensor(coordinator=coordinator, user_info=user_info))
-    entities.append(DhlPickupPendingSensor(coordinator=coordinator, user_info=user_info))
+    entities.append(
+        DhlEnRouteToServicePointSensor(coordinator=coordinator, user_info=user_info)
+    )
+    entities.append(
+        DhlPickupPendingSensor(coordinator=coordinator, user_info=user_info)
+    )
 
     # Outgoing shipments — single summary sensor.
     entities.append(
@@ -163,9 +170,7 @@ class DhlIncomingParcelsSensor(CoordinatorEntity[DhlCoordinator], SensorEntity):
     def _handle_coordinator_update(self) -> None:
         """Reconcile per-parcel sensors and trigger a state write."""
         current_parcels: list[dict] = self.coordinator.data or []
-        current_barcodes: set[str] = {
-            p.get("barcode", "") for p in current_parcels
-        }
+        current_barcodes: set[str] = {p.get("barcode", "") for p in current_parcels}
 
         # Add sensors for barcodes that are new.
         new_barcodes = current_barcodes - self._known_barcodes
@@ -187,9 +192,7 @@ class DhlIncomingParcelsSensor(CoordinatorEntity[DhlCoordinator], SensorEntity):
             user_id: str = self._user_info.get("userId", "")
             for barcode in stale_barcodes:
                 unique_id = f"{user_id}_{barcode}"
-                entity_id = registry.async_get_entity_id(
-                    "sensor", DOMAIN, unique_id
-                )
+                entity_id = registry.async_get_entity_id("sensor", DOMAIN, unique_id)
                 if entity_id:
                     registry.async_remove(entity_id)
 
@@ -403,7 +406,8 @@ class DhlEnRouteToServicePointSensor(CoordinatorEntity[DhlCoordinator], SensorEn
     def _get_en_route_parcels(self) -> list[dict]:
         """Return active parcels still in transit to a ServicePoint."""
         return [
-            p for p in (self.coordinator.data or [])
+            p
+            for p in (self.coordinator.data or [])
             if (p.get("destination") or {}).get("locationType") == "SERVICEPOINT"
             and p.get("status") != STATUS_AT_SERVICE_POINT
         ]
@@ -421,7 +425,9 @@ class DhlEnRouteToServicePointSensor(CoordinatorEntity[DhlCoordinator], SensorEn
                     "barcode": p.get("barcode"),
                     "sender": (p.get("sender") or {}).get("name"),
                     "service_point": (p.get("destination") or {}).get("name"),
-                    "service_point_address": (p.get("destination") or {}).get("address"),
+                    "service_point_address": (p.get("destination") or {}).get(
+                        "address"
+                    ),
                     "status": p.get("status"),
                 }
                 for p in parcels
@@ -457,7 +463,8 @@ class DhlPickupPendingSensor(CoordinatorEntity[DhlCoordinator], SensorEntity):
     def _get_pickup_parcels(self) -> list[dict]:
         """Return parcels that have arrived at a ServicePoint and are ready for collection."""
         return [
-            p for p in (self.coordinator.data or [])
+            p
+            for p in (self.coordinator.data or [])
             if (p.get("destination") or {}).get("locationType") == "SERVICEPOINT"
             and p.get("status") == STATUS_AT_SERVICE_POINT
         ]

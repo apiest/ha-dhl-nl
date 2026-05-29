@@ -1,4 +1,5 @@
 """Config flow for the DHL Package Tracker integration."""
+
 from __future__ import annotations
 
 import logging
@@ -74,9 +75,7 @@ class DhlConfigFlow(ConfigFlow, domain=DOMAIN):
     # Re-authentication steps
     # ------------------------------------------------------------------
 
-    async def async_step_reauth(
-        self, entry_data: dict[str, Any]
-    ) -> ConfigFlowResult:
+    async def async_step_reauth(self, entry_data: dict[str, Any]) -> ConfigFlowResult:
         """Initiate re-authentication for an existing config entry."""
         return await self.async_step_reauth_confirm()
 

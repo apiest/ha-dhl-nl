@@ -1,5 +1,6 @@
 """Tests for coordinator filter functions and error handling."""
-from unittest.mock import AsyncMock, MagicMock, patch
+
+from unittest.mock import AsyncMock, MagicMock
 
 import pytest
 
@@ -13,6 +14,7 @@ from custom_components.dhl_nl.coordinator import (
 # ---------------------------------------------------------------------------
 # filter_active_parcels
 # ---------------------------------------------------------------------------
+
 
 def _parcel(category: str, is_return: bool = False) -> dict:
     return {"barcode": "TEST123", "category": category, "isReturn": is_return}
@@ -32,6 +34,7 @@ def test_return_parcel_is_excluded():
 
 def test_all_active_categories_pass():
     from custom_components.dhl_nl.const import ACTIVE_CATEGORIES
+
     parcels = [_parcel(cat) for cat in ACTIVE_CATEGORIES]
     assert len(filter_active_parcels(parcels)) == len(ACTIVE_CATEGORIES)
 
@@ -55,6 +58,7 @@ def test_empty_list_returns_empty():
 # filter_active_sent_shipments
 # ---------------------------------------------------------------------------
 
+
 def _shipment(category: str, shipment_type: str = "outgoing") -> dict:
     return {"barcode": "SENT123", "category": category, "type": shipment_type}
 
@@ -68,12 +72,18 @@ def test_delivered_shipment_is_excluded():
 
 
 def test_non_outgoing_type_is_excluded():
-    assert filter_active_sent_shipments([_shipment("IN_DELIVERY", shipment_type="incoming")]) == []
+    assert (
+        filter_active_sent_shipments(
+            [_shipment("IN_DELIVERY", shipment_type="incoming")]
+        )
+        == []
+    )
 
 
 # ---------------------------------------------------------------------------
 # DhlCoordinator error handling
 # ---------------------------------------------------------------------------
+
 
 async def test_coordinator_raises_update_failed_on_api_error(hass):
     from homeassistant.helpers.update_coordinator import UpdateFailed
@@ -89,11 +99,13 @@ async def test_coordinator_raises_update_failed_on_api_error(hass):
 
 async def test_coordinator_returns_only_active_parcels(hass):
     client = MagicMock()
-    client.async_get_parcels = AsyncMock(return_value=[
-        _parcel("IN_DELIVERY"),
-        _parcel("DELIVERED"),
-        _parcel("IN_DELIVERY", is_return=True),
-    ])
+    client.async_get_parcels = AsyncMock(
+        return_value=[
+            _parcel("IN_DELIVERY"),
+            _parcel("DELIVERED"),
+            _parcel("IN_DELIVERY", is_return=True),
+        ]
+    )
 
     coordinator = DhlCoordinator(hass, client)
     result = await coordinator._async_update_data()

@@ -1,4 +1,5 @@
 """DHL Package Tracker custom component for Home Assistant."""
+
 from __future__ import annotations
 
 import logging
@@ -16,6 +17,14 @@ from .const import DOMAIN, PLATFORMS
 from .coordinator import DhlCoordinator, DhlSentShipmentsCoordinator
 
 _LOGGER = logging.getLogger(__name__)
+
+
+def _parcel_is_loaded(hass: HomeAssistant) -> bool:
+    """Return True if the Parcel integration has a loaded config entry."""
+    return any(
+        entry.state.value == "loaded"
+        for entry in hass.config_entries.async_entries("parcel")
+    )
 
 
 async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
@@ -65,6 +74,12 @@ async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
         "session": session,
     }
 
+    # Conditionally register as a Parcel provider (standalone-safe).
+    if _parcel_is_loaded(hass):
+        from .parcel_bridge import register_provider  # noqa: PLC0415
+
+        register_provider(hass)
+
     await hass.config_entries.async_forward_entry_setups(entry, PLATFORMS)
     return True
 
@@ -84,6 +99,11 @@ async def async_unload_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
     """
     unload_ok = await hass.config_entries.async_unload_platforms(entry, PLATFORMS)
     if unload_ok:
+        if _parcel_is_loaded(hass):
+            from .parcel_bridge import unregister_provider  # noqa: PLC0415
+
+            unregister_provider(hass)
+
         data = hass.data[DOMAIN].pop(entry.entry_id)
         await data["session"].close()
     return unload_ok
