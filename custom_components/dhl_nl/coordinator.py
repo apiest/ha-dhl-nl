@@ -3,7 +3,7 @@
 from __future__ import annotations
 
 import logging
-from datetime import timedelta
+from datetime import UTC, datetime, timedelta
 
 import aiohttp
 
@@ -11,7 +11,13 @@ from homeassistant.core import HomeAssistant
 from homeassistant.helpers.update_coordinator import DataUpdateCoordinator, UpdateFailed
 
 from .api import DhlApiClient, DhlApiError
-from .const import ACTIVE_CATEGORIES, DOMAIN, POLL_INTERVAL
+from .const import (
+    ACTIVE_CATEGORIES,
+    DELIVERED_CATEGORY,
+    DELIVERED_RETENTION_DAYS,
+    DOMAIN,
+    POLL_INTERVAL,
+)
 
 _LOGGER = logging.getLogger(__name__)
 
@@ -31,6 +37,62 @@ def filter_active_sent_shipments(shipments: list[dict]) -> list[dict]:
         s
         for s in shipments
         if s.get("type") == "outgoing" and s.get("category") in ACTIVE_CATEGORIES
+    ]
+
+
+def _parse_iso(value: str | None) -> datetime | None:
+    """Parse an ISO 8601 timestamp, returning None when absent or malformed."""
+    if not value:
+        return None
+    try:
+        parsed = datetime.fromisoformat(value)
+    except (TypeError, ValueError):
+        return None
+    if parsed.tzinfo is None:
+        parsed = parsed.replace(tzinfo=UTC)
+    return parsed
+
+
+def _days_since_delivery(shipment: dict) -> float | None:
+    """Return days since delivery, or None when it cannot be determined."""
+    received_days_ago = shipment.get("receivedDaysAgo")
+    if isinstance(received_days_ago, (int, float)):
+        return float(received_days_ago)
+
+    indication = shipment.get("receivingTimeIndication") or {}
+    moment = _parse_iso(indication.get("moment")) or _parse_iso(
+        shipment.get("timeCreated")
+    )
+    if moment is None:
+        return None
+    return (datetime.now(UTC) - moment).total_seconds() / 86400
+
+
+def _is_recently_delivered(shipment: dict) -> bool:
+    """Return True for delivered shipments still inside the retention window.
+
+    Shipments whose delivery date cannot be determined are included, so a
+    missing timestamp never causes Parcel to mis-expire a delivered parcel.
+    """
+    if shipment.get("category") != DELIVERED_CATEGORY:
+        return False
+    days = _days_since_delivery(shipment)
+    return days is None or days <= DELIVERED_RETENTION_DAYS
+
+
+def filter_recently_delivered_parcels(parcels: list[dict]) -> list[dict]:
+    """Return incoming parcels delivered within the retention window."""
+    return [
+        p for p in parcels if not p.get("isReturn", True) and _is_recently_delivered(p)
+    ]
+
+
+def filter_recently_delivered_sent_shipments(shipments: list[dict]) -> list[dict]:
+    """Return outgoing shipments delivered within the retention window."""
+    return [
+        s
+        for s in shipments
+        if s.get("type") == "outgoing" and _is_recently_delivered(s)
     ]
 
 
@@ -62,7 +124,9 @@ class DhlCoordinator(DataUpdateCoordinator[list[dict]]):
         _LOGGER.debug("DHL parcels fetched: %d total, %d active", len(raw), len(active))
 
         # Push to the Parcel integration (no-op when Parcel is not loaded).
-        await self._push_to_parcel(active)
+        # Delivered parcels are included so Parcel records the terminal status
+        # instead of expiring them once DHL drops them from the active set.
+        await self._push_to_parcel(active + filter_recently_delivered_parcels(raw))
 
         return active
 
@@ -79,8 +143,7 @@ class DhlCoordinator(DataUpdateCoordinator[list[dict]]):
         for data in entry_data.values():
             if isinstance(data, dict) and "sent_coordinator" in data:
                 sent_coord = data["sent_coordinator"]
-                if sent_coord.data:
-                    outgoing = sent_coord.data
+                outgoing = sent_coord.shipments_for_push
                 break
 
         await push_to_parcel(self.hass, incoming, outgoing)
@@ -103,6 +166,14 @@ class DhlSentShipmentsCoordinator(DataUpdateCoordinator[list[dict]]):
             update_interval=timedelta(seconds=POLL_INTERVAL),
         )
         self._client = client
+        self._raw: list[dict] = []
+
+    @property
+    def shipments_for_push(self) -> list[dict]:
+        """Return active + recently delivered outgoing shipments for Parcel."""
+        return filter_active_sent_shipments(
+            self._raw
+        ) + filter_recently_delivered_sent_shipments(self._raw)
 
     async def _async_update_data(self) -> list[dict]:
         try:
@@ -110,6 +181,7 @@ class DhlSentShipmentsCoordinator(DataUpdateCoordinator[list[dict]]):
         except (DhlApiError, aiohttp.ClientError) as err:
             raise UpdateFailed(f"DHL error (sent): {err}") from err
 
+        self._raw = raw
         active = filter_active_sent_shipments(raw)
         _LOGGER.debug(
             "DHL sent shipments fetched: %d total, %d active", len(raw), len(active)

@@ -12,6 +12,14 @@ SENT_SHIPMENTS_URL = "https://my.dhlecommerce.nl/api/orders/sentShipments?max=25
 
 POLL_INTERVAL = 1800  # seconds (30 minutes)
 
+# Terminal category returned by both the parcels and sentShipments endpoints.
+DELIVERED_CATEGORY = "DELIVERED"
+
+# How long a delivered shipment keeps being pushed to the Parcel integration.
+# Parcel expires any shipment a provider stops reporting, so delivered parcels
+# must keep being pushed long enough for Parcel to record the terminal status.
+DELIVERED_RETENTION_DAYS = 7
+
 # All categories that indicate a shipment is still active (not yet delivered).
 # Applies to both incoming parcels and outgoing sent shipments.
 # DELIVERED is the only terminal category and is intentionally excluded.
